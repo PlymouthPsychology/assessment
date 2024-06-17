@@ -1,0 +1,50 @@
+---
+title: "Statistical Moderation Report"
+# author: "Jon May"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding){
+  rmarkdown::render(inputFile, encoding = encoding, output_format = "all") })
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+source('helpers.R')
+```
+
+## Moderation report for: `r module_codes %>% paste(collapse=", ")`
+
+
+There were `r nrow(marks)` students registered for this assessment, and 
+`r  nrow(nozeroes) ` submissions received. 
+
+Only submissions obtaining marks above zero are summarised below.
+
+The assessment was marked by `r nrow(descriptives)` markers.
+
+Before moderation, the mean grade was `r original.mean` (SD=`r original.SD`).
+
+The Grades were converted into linear equivalents ranging from 1=F- (15%) to 15=A+ (100%),
+and a oneway ANOVA comparing the markers gave `r frep(originalanova)`.
+There were `r nrow(pwc.n)` pairwise differences between markers.
+
+
+`r if(nrow(pwc.n)>0) {knitr::kable(pwc.n, digits=3, caption="Pairwise difference before moderation")}`
+
+A Linear Model was run to determine each marker's difference from the mean grade, using the linear equivalents.
+`r knitr::kable(adjustments, digits=2, caption="Markers' distances from mean and adjustments applied to grade")`
+
+Any adjustments were then made to Grades.
+`r knitr::kable(descriptives, digits=2, caption="Markers' premoderation and postmoderation means and SDs")`
+
+Following this process, the mean grade was `r moderated.mean` (SD=`r moderated.SD`).
+A oneway Anova now gave `r frep(moderated.anova)`.
+
+`r knitr::kable(classes, caption="Final distribution of marks within classes:")`
+
+```{r plot_figs, echo=FALSE, message=FALSE, warning=FALSE}
+moderateddots
+finaldistribution
+```
+
+

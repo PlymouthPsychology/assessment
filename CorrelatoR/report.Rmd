@@ -1,0 +1,66 @@
+---
+title: "Correlated Marks"
+output: html_document
+params:
+   Data: NA
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidyverse)
+library(numform)
+library(psych)
+
+
+
+
+
+
+
+
+
+
+# make data for pairwise panel
+pairs.data<-params$Data %>% 
+   select(`Email address`, Grade, file) %>% 
+   filter(Grade>0) %>% 
+   pivot_wider(names_from = file, values_from = Grade) %>% 
+   select(-`Email address`)
+
+
+
+
+# now the markdown for the report ----
+
+```
+
+There were `r nrow(pairs.data)` unique students with marks for these assessments. 
+
+
+
+## Correlations between Questions 
+```{r plot_figs, echo=FALSE, message=FALSE, warning=FALSE}
+# Creating the scatter plot matrix
+# 
+pairs.panels(pairs.data,
+             smooth = TRUE,      # If TRUE, draws loess smooths
+             scale = FALSE,      # If TRUE, scales the correlation text font
+             density = TRUE,     # If TRUE, adds density plots and histograms
+             ellipses = TRUE,    # If TRUE, draws ellipses
+             method = "pearson", # Correlation method (also "spearman" or "kendall")
+             pch = 20,           # pch symbol
+             lm = TRUE,         # If TRUE, plots linear fit rather than the LOESS (smoothed) fit
+             cor = TRUE,         # If TRUE, reports correlations
+             jiggle = TRUE,     # If TRUE, data points are jittered
+             factor = 2,         # Jittering factor
+             hist.col = 4,       # Histograms color
+             stars = TRUE,       # If TRUE, adds significance level with stars
+             ci = TRUE)    
+```
+
+

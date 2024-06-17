@@ -1,0 +1,125 @@
+---
+title: "Statistical Moderation report"
+output: html_document
+
+params:
+  modcode: NA
+  marks: NA
+  summary: NA
+  origanova: NA
+  orig.markers: NA
+  orig.pairwise: NA
+  modTable: NA
+  modSummary: NA
+  moderatedMarks: NA
+  mod.pairwise: NA
+ 
+
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(numform)
+
+library(tidyverse)
+
+
+# Conversion for grades to letters, linear categories 1-15, and classes
+CATEGORICAL=tibble(Grade=c(0, 17 , 25, 38, 42, 45, 48, 52, 55, 58, 62, 65, 68, 77, 88, 100),
+                   Category=0:15, 
+                   Letter=c("Z","N-", "N", "N+", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"),
+                   Class=c("Zero","Fail", "Fail", "Fail", "3rd", "3rd", "3rd", "2:II", "2:II", "2:II", "2:I", "2:I", "2:I", "1st", "1st", "1st"),
+                   MClass= c("Zero","Fail", "Fail", "Fail", "Fail", "Fail", "Fail", "Pass", "Pass", "Pass", "Merit", "Merit", "Merit", "Dist", "Dist", "Dist")) 
+
+CATEGORICAL$MClass<-ordered(CATEGORICAL$MClass, levels=c("Dist","Merit","Pass","Fail"))
+
+
+distribution <- function(marks){
+   marks %>% 
+      ggplot(aes(x=Grade, fill=Class)) +
+      geom_bar() +
+      xlim(17,100) +
+      scale_x_continuous(breaks=CATEGORICAL$Grade) +
+      theme_classic()
+}
+
+markersdensity <- function(marks){
+   marks %>% ggplot(aes(x=Grade, group=Marker, colour=Marker))+
+      geom_density() +
+      xlim(0,100) +
+      theme_classic()
+}
+
+
+f <- params$marks
+
+
+origclasses <- f %>% 
+   group_by(Class) %>% 
+   summarise(n=n()) %>% 
+   mutate(percent=f_percent(100*(n/sum(n)),0))
+
+
+modclasses <- params$moderatedMarks %>% 
+   group_by(Class) %>% 
+   summarise(n=n()) %>% 
+   mutate(percent=f_percent(100*(n/sum(n)),0))
+
+#### MARKDOWN ----
+
+```
+## Processing marks for `r params$modcode`.
+
+`r params$summary`
+
+## Premoderation distribution
+
+
+```{r origDist, echo=FALSE, message=FALSE, warning=FALSE}
+distribution(f)
+```
+
+
+`r knitr::kable(origclasses, caption="Proportions of classes in premoderated marks")`
+
+## Marker's details premoderation
+
+```{r origdensity, echo=FALSE, message=FALSE, warning=FALSE}
+markersdensity(f)
+```
+
+`r knitr::kable(params$orig.markers, digits=2, caption="Markers' details from premoderated marks")`
+
+`r params$origanova`
+
+`r knitr::kable(params$orig.pairwise, digits=3, caption="Pairwise comparisons between Markers' premoderated marks")`
+
+
+## Moderation
+
+The following moderation values were applied:
+
+`r knitr::kable(params$modTable, digits=1, caption="Grade adjustments for each marker")`
+
+Grades were not moved above A+ (100%), or below the Fail boundary. No Failing grades were changed. For Undergraduate modules, the minimum passing grade is 42 (D-); for Masters modules, the minimum passing grade is C- (52).
+
+`r params$modSummary`
+
+```{r moddensity, echo=FALSE, message=FALSE, warning=FALSE}
+markersdensity(params$moderatedMarks)
+```
+
+`r knitr::kable(params$mod.pairwise, digits=3, caption="Pairwise comparisons between Markers' moderated marks")`
+
+## Final marks
+
+```{r modDist, echo=FALSE, message=FALSE, warning=FALSE}
+distribution(params$moderatedMarks)
+```
+
+`r knitr::kable(modclasses,  caption="Proportions of classes in moderated marks")`
+
