@@ -1,7 +1,15 @@
+#### A shiny app that will combine several gradebooks from different assignments
+#### into a single mark that can be uploaded to a 'combined grade' assignment
+#### Each question can be weighted differently
+
+#### libraries ----
+
 library(shiny)
 library(tidyverse)
 library(rio)
 
+#### initialize ----
+# NB these will be globals made by <<- so persist outside the function making them
 WeightTable<-NULL
 NewData<-NULL
 Final<-NULL
@@ -35,8 +43,8 @@ server<-function(input,output) {
   # size and temp location of the files uploaded
 
   
-  datamerge <- reactive({
-    
+  datamerge <- reactive({   # combine all of the files dropped into input$file
+                            # adding filename and using filename if no Marker named
     if(is.null(input$file))
       return()
     else 
@@ -65,7 +73,7 @@ server<-function(input,output) {
   output$info2<-renderUI(HTML("<br/><br/>Upload the Gradebook file to return the combined Grade in.<br/>(You must have revealed identities first).<br/><br/>"))
   
   
-  output$overview<-renderText({
+  output$overview<-renderText({  # count number of students
      if(is.null(input$file))
         return()
      else 
@@ -79,11 +87,11 @@ server<-function(input,output) {
   
  
   
-  output$summary<-renderText({
+  output$summary<-renderText({   # report students in output
      if(is.null(input$final)){return()}
      else {
  
-        Final<<-import(input$final$datapath)
+        Final<<-import(input$final$datapath)  # make gradebook for returned grade a Global
          paste0("There are ",nrow(Final)," students in the file.")
      }
   })
@@ -96,52 +104,58 @@ server<-function(input,output) {
     
   })
   
-  output$weightTable<-renderTable({
-    f<-tibble(file=input$file$name)
+  output$weightTable<-renderTable({   # display question stats and ask for weights
+    f<-tibble(file=input$file$name)   # a list of the files provided
     d<-datamerge()
-    n<-d %>% filter(!is.na(Grade)) %>% 
+    n<-d %>% filter(!is.na(Grade)) %>%  # stats for each question file
       group_by(file) %>% 
       summarise(students=n(), M=mean(Grade, na.rm=T), SD=sd(Grade,na.rm=T))
-    f<-left_join(f,n)
+    f<-left_join(f,n)                 # add stats to the list of files 
     
     
-    if(is.null(input$weightValues))
-      return(f)
+    if(is.null(input$weightValues))  # get a comma separated list of values
+      return(f)  # if nothing entered show file stats
     else 
     {
     weights<-unlist(strsplit(input$weightValues,split=","))
    
     if(length(weights)==nrow(f)){
     
-    WeightTable<<-cbind(f,weights) %>% 
-       mutate(weights=as.numeric(weights))
-    n<-left_join(d,WeightTable) %>% 
+    WeightTable<<-cbind(f,weights) %>%       # add the weights to the list of files
+       mutate(weights=as.numeric(weights))   # NB no checking here so gigo possible 
+                                             # NB this is a Global <<-
+
+    n<-left_join(d,WeightTable) %>%          # add the weights onto every line in the input data       
        select(`Email address`,Grade,weights) %>% 
-       mutate(wGrade=Grade*weights/100) %>% 
-       filter(!is.na(wGrade)) %>% 
-       group_by(`Email address`) %>% 
-       summarise(newGrade=sum(wGrade))
-    NewData<<-left_join(Final,n) %>% 
-      mutate(Grade=newGrade) %>% 
-      select(-newGrade) %>% 
+       mutate(wGrade=Grade*weights/100) %>%  # compute weighted Grade
+       filter(!is.na(wGrade)) %>%            # remove and NAs
+       group_by(`Email address`) %>%         # and add them up for each student
+       summarise(newGrade=sum(wGrade))       # should now have just email and combined grade
+       
+       
+    NewData<<-left_join(Final,n) %>%         # NB Global made by adding combined grade onto output gradebook
+      mutate(Grade=newGrade) %>%             # replace Grade with combined grade 
+      select(-newGrade) %>%                  # remove combined grade
       filter(!is.na(Grade))
-    m<-d %>% filter(!is.na(Grade)) %>%
-      select(`Email address`,Marker) %>% 
-      rename(newMarker=Marker)
-    NewData<<-left_join(NewData,m) %>% 
-      mutate(Marker=newMarker) %>% 
-      select(-newMarker)
-    
-    
-    
-    CheckData<<-d %>% 
-       select(`Email address`,Grade,file) %>% 
-       pivot_wider(names_from = file, values_from = Grade) %>% 
-       left_join(.,NewData %>% select(`Email address`,Grade))
       
-    return(WeightTable)
+      
+    m<-d %>% filter(!is.na(Grade)) %>%       # unsure if this works as intended
+      select(`Email address`,Marker) %>% 
+      rename(newMarker=Marker)               # find marker for each student
+    NewData<<-left_join(NewData,m) %>%       # add it to return file
+      mutate(Marker=newMarker) %>%           # replace empty Marker
+      select(-newMarker)                     # remove added column
+     
+    
+    
+    CheckData<<-d %>%                        # make a Global file with workings for checking       
+       select(`Email address`,Grade,file) %>%                  # get all the grades for a student
+       pivot_wider(names_from = file, values_from = Grade) %>% # onto one line
+       left_join(.,NewData %>% select(`Email address`,Grade))  # and add the combined Grade
+      
+    return(WeightTable)  # display the file stats with weights
     }
-    else{return(f)}
+    else{return(f)}      # or just the file stats
     }
   })
   
@@ -149,13 +163,8 @@ server<-function(input,output) {
   ## DownloadHandler to download the merged dataset
   output$download <- downloadHandler("merged.csv",
 
-    
-
-    # This function should write data to a file given to it by
-    # the argument 'file'.
+    # This function should write NewData to a merged.csv
     content = function(file) {
-
-      # Write to a file 
       write.csv(NewData, file, row.names = FALSE)
     }
   )
@@ -163,28 +172,23 @@ server<-function(input,output) {
   ## DownloadHandler to download the check data
   output$check <- downloadHandler("CheckData.csv",
                                      
-                                     
-                                     
-                                     # This function should write data to a file given to it by
-                                     # the argument 'file'.
-                                     content = function(file) {
-                                        
-                                        # Write to a file 
-                                        write.csv(CheckData, file, row.names = FALSE)
-                                     }
+       # This function should write CheckData to Checkdata.csv
+       content = function(file) {
+          write.csv(CheckData, file, row.names = FALSE)
+       }
   )
   
-  output$report <- downloadHandler(
+  output$report <- downloadHandler(   # pass data to the Markdown file for output
      filename = "Mark Combining Report.html",
-     content = function(file) {
+     content = function(file) {  # make a copy of the outputfile locally on shiny server
         tempReport <- file.path(tempdir(), "CombiningMarks.Rmd")
         file.copy("CombiningMarks.Rmd", tempReport, overwrite = TRUE)
         
         params <- list(
-           Data = CheckData
+           Data = CheckData   # send the Checkdata over
         )
         
-        rmarkdown::render(input = tempReport, 
+        rmarkdown::render(input = tempReport,   # combine the data with the markdown
                           output_file = file,
                           params = params,
                           envir = new.env(parent = globalenv())
@@ -215,5 +219,5 @@ server<-function(input,output) {
 }
 
 
-## Run the application 
+#### Run the application ----
 shinyApp(ui = ui, server = server)
