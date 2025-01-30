@@ -1,0 +1,123 @@
+---
+title: "MCQ scoring and scaling"
+output: html_document
+
+params:
+  modcode: NA
+  scored: NA
+  aplus: NA
+  pass: NA
+  
+
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(numform)
+library(kableExtra)
+
+library(tidyverse)
+
+# convert raw data to raw totals per student
+dist<-params$scored %>% group_by(SRN) %>% summarise(score=sum(score))
+
+pass<-params$pass
+aplus<-params$aplus
+scored<-params$scored
+
+# convert raw scores to grade using aplus and pass
+  points<-aplus-pass  # what is the gap between 42 and 100
+   binwidth<-round(points/11,0)    # how wide are the 11 bins
+
+   dist<-dist %>% mutate(grade=case_when(
+      score<pass ~ 38,   # if below pass, grade is 38
+      score<pass + binwidth ~ 42,
+      score<pass + 2*binwidth ~ 45,
+      score<pass + 3*binwidth ~ 48,
+      score<pass + 4*binwidth ~ 52,
+      score<pass + 5*binwidth ~ 55,
+      score<pass + 6*binwidth ~ 58,
+      score<pass + 7*binwidth ~ 62,
+      score<pass + 8*binwidth ~ 65,
+      score<pass + 9*binwidth ~ 68,
+      score<pass + 10*binwidth ~ 77,
+      score<aplus ~ 88,
+      
+      TRUE ~ 100
+   ))
+
+gtable<-tibble(Grade=c("F+", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"),
+                  Min=c(0,pass,pass+binwidth,pass+2*binwidth,
+                        pass+3*binwidth, pass+4*binwidth,pass+5*binwidth,
+                        pass+6*binwidth, pass+7*binwidth,pass+8*binwidth,
+                        pass+9*binwidth, pass+10*binwidth,aplus) 
+   )
+            
+   
+
+
+
+# Conversion for grades to letters, linear categories 1-15, and classes
+CATEGORICAL=tibble(Grade=c(0, 15 , 25, 38, 42, 45, 48, 52, 55, 58, 62, 65, 68, 77, 88, 100),
+                   Category=0:15, 
+                   Letter=c("N","F-", "F", "F+", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"),
+                   Class=c("Zero","Fail", "Fail", "Fail", "3rd", "3rd", "3rd", "2:II", "2:II", "2:II", "2:I", "2:I", "2:I", "1st", "1st", "1st"),
+                   MClass= c("Zero","Fail", "Fail", "Fail", "Fail", "Fail", "Fail", "Pass", "Pass", "Pass", "Merit", "Merit", "Merit", "Dist", "Dist", "Dist")) 
+
+
+       
+
+
+
+#### MARKDOWN ----
+
+```
+### Processing marks for `r params$modcode`.
+There were `r nrow(scored)` answers received
+ from `r length(unique(scored$SRN))` students 
+ answering `r length(unique(scored$name))` items.
+ 
+### Raw total correct
+```{r plot_raw, echo=FALSE, message=FALSE, warning=FALSE}
+dist %>% ggplot(aes(x=score))+geom_bar()
+```
+
+The Module Leader identified `r pass` as the minimum total required to Pass (D-) and `r aplus` as the minimum total required for A+.
+
+The other grades were allocated equal bin widths of `r binwidth` between these two values, with the remainder allocated to A grades.
+
+`r  kable_styling(kable(t(gtable),  align=c("r","l"), caption="Minimum total correct required for each Grade"),full_width=F)` 
+
+### Grade distribution
+
+```{r plot_grades, echo=FALSE, message=FALSE, warning=FALSE}
+# create grade plot labelled with N and percent
+pct_format <- scales::percent_format(accuracy = .1)
+    
+dist %>% ggplot(aes(x=grade))+
+       geom_bar() +
+       geom_text(
+       aes(
+          label = sprintf(
+             '%d (%s)',
+             ..count..,
+             pct_format(..count.. / sum(..count..))
+          )
+       ),
+       stat = 'count',
+       nudge_y = 1,
+       colour = 'royalblue',
+       size = 3)
+
+
+```
+
+
+
+
+Produced : `r format(Sys.time(), "%a %b %d %X %Y")`
+
