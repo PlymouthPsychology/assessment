@@ -1,6 +1,6 @@
 ---
 title: "Correlated Marks"
-output: html_document
+output: pdf_document
 params:
    Data: NA
 ---
@@ -34,6 +34,9 @@ pairs.data<-params$Data %>%
 
 
 
+# get statistics on each file
+stats<-params$Data %>% group_by(file) %>% 
+   summarise(N=n(),M=mean(Grade, na.rm=T),SD=sd(Grade, na.rm=T))
 
 # now the markdown for the report ----
 
@@ -41,7 +44,7 @@ pairs.data<-params$Data %>%
 
 There were `r nrow(pairs.data)` unique students with marks for these assessments. 
 
-
+`r knitr::kable(stats, digits=2, caption="Question statistics")`
 
 ## Correlations between Questions 
 ```{r plot_figs, echo=FALSE, message=FALSE, warning=FALSE}
