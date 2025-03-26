@@ -336,33 +336,33 @@ ui <- page_sidebar(
       textOutput("modcode"),
       
       layout_columns(
-        card(
+        card(max_height = 350,
           card_header("Original grades"),
           plotOutput("origDist", height =
-                       "50%")
+                       "100%")
         ),
         
-        card(
+        card(max_height = 350,
           card_header("Original distributions"),
           plotOutput("origPlot", height =
-                       "50%")
+                       "100%")
         ),
         
-        card(
+        card(max_height = 350,
           card_header("Statistics"),
           tableOutput("markers"),
           textOutput("origAnova"),
           tableOutput("pairwise")
         ),
         
-        card(
+        card(max_height = 150,
           card_header("Moderate markers"),
           textOutput("modInfo"),
           textInput("modValues", "Moderation values", value =
                       "")
         ),
         
-        card(card_header("To be applied"), tableOutput("modTable")),
+        card(max_height = 150,card_header("To be applied"), tableOutput("modTable")),
         
         col_widths = c(6, 6, 12, 6, 6),
         row_heights = c(1, 2, 1)
@@ -375,19 +375,19 @@ ui <- page_sidebar(
       "Moderated Marks",
       
       layout_columns(
-        card(
+        card(max_height = 350,
           card_header("Moderated grades"),
           plotOutput("modDist", height =
-                       "50%")
+                       "100%")
         ),
         
-        card(
+        card(max_height = 350,
           card_header("Moderated distributions"),
           plotOutput("modPlot", height =
-                       "50%")
+                       "100%")
         ),
         
-        card(
+        card(max_height = 350,
           card_header("Statistics"),
           
           
@@ -396,9 +396,9 @@ ui <- page_sidebar(
           tableOutput("mod.pairwise")
         ),
         
-        card(card_header("Classifications"), tableOutput("modClasses")),
+        card(max_height = 150,card_header("Classifications"), tableOutput("modClasses")),
         
-        card(
+        card(max_height = 150,
           card_header("Files to download"),
           downloadButton("downloadData", "Download moderated marks"),
           downloadButton("report", "Download EE report")
