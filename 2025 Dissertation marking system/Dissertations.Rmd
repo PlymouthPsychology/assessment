@@ -54,13 +54,13 @@ library(rio)
 modulecodes<-c(605)
 
 ######## what year is it
-ThisYear<-"2024"
+ThisYear<-"2025"
 
 ######## Data file paths
 dlepath<-"marksheets"
 datapath<-"surveydata"
 s4path<-"enrolments"
-
+allocationspath<-"allocations"
 
 
 
@@ -68,6 +68,10 @@ s4path<-"enrolments"
 files<-list.files(path=datapath, full.names = T)
 fileinfo<-file.info(files) %>% arrange(desc(mtime))
 datafile<-rownames(fileinfo)[1]
+survey<-rio::import(datafile) # this assumes data has been exported as CSV with headers set to Question code
+# ignore all entries before April this year
+survey<-survey %>% #mutate(StartDate=dmy_hm(startdate)) %>% 
+   filter(startdate>as.Date(paste0(ThisYear,"/04/01")))
 
 
 #### read in gradebooks from dlepath ----
@@ -80,9 +84,14 @@ status<-dle %>%
    rename(Email=`Email address`) %>% 
    select(Email,Status,mod)
 
+submitted<-status %>% filter(Status=="Submit")
+
+
+
+
 #### read in enrolment lists from s4path ----
 
-files<-list.files(path=s4path, pattern=".csv", full.names = T)
+files<-list.files(path=s4path,  full.names = T)
 s4<-rio::import_list(files, rbind=T)
 s4<-s4 %>%
    rename(SRN=`Student Reference Number (SRN)`,
@@ -91,36 +100,21 @@ s4<-s4 %>%
           Programme=`Stage: Programme: Programme Name`,
           Enrolment=`Enrolment Status`) %>%
    mutate(SRN=as.character(SRN),
-          mod=str_sub(`_file`,-7,-5)) %>%
+          mod=str_sub(`_file`,-8,-6)) %>%
    select(SRN, Name, Email, Programme, Enrolment,mod) 
 
+#### read in allocations from allocationspath ----
 
+files<-list.files(path=allocationspath, full.names = T)
+allocations<-rio::import_list(files, rbind=T) %>% 
+   rename(Email=email) %>% mutate(SRN=as.character(SRN))
 
-# Marking allocations
+# Submissions
 
-allocations<-import(paste0("Project Marking 2024.xlsx")) 
-
-
-submitted<-status %>% filter(Status=="Submit")
-
-
+allocations<-left_join(s4,allocations)
 students<-left_join(allocations,submitted)
 
-####### READ QUALTRICS DATA
-# datafile<-paste0(datapath,datafile)
-# first row of the file has variable names, second has item text, and third has junk. Data starts on row 4
-# so first read the first row into a vector containing the variable names
-col_names <- names(read_csv(datafile, n_max = 0))
-# then read the item text from second row
-items<- names(read_csv(datafile,skip=1, n_max=0))
-# and name these with the variable names
-names(items)<-col_names
-# and then read in everything else skipping rows 1 to 3
-survey<-read_csv(datafile, col_names = col_names, skip = 3)
 
-# ignore all entries before this year
-survey<-survey %>% mutate(StartDate=dmy_hm(StartDate)) %>% 
-   filter(StartDate>as.Date(paste0(ThisYear,"/01/01")))
 
 # RECODINGS
 grade.percent<-c(
@@ -185,42 +179,44 @@ survey<-survey %>%
 # 
 # # these spurious entries have been replaced by correct ones so can be deleted
 # # 
-survey<-survey %>% filter(!SRN=="12345678" # test
-                          )
+survey<-survey %>% filter(!SRN=="12345678" & 
+                          !SRN=="11111111" &
+                          !SRN=="99999999")
 
 
 # put all marks in one column
 marks <- survey %>% 
-  select(StartDate, SRN, StudentName, Super.pc,Second.pc,Agree.pc) %>%
+  select(startdate, SRN, StudentName, Super.pc,Second.pc,Agree.pc) %>%
   pivot_longer(Super.pc:Agree.pc, names_to = "Source", values_to = "Mark") %>% 
   filter(Mark>-1)
 
 # put all comments in one column
 comments <- survey %>% 
-  select(StartDate, SRN, StudentName, SuperText, SecondText, AgreedText, AgreedNotes, Prize) %>%
+  select(startdate, SRN, StudentName, SuperText, SecondText, AgreedText, AgreedNotes, Prize) %>%
     pivot_longer(SuperText:Prize, names_to = "Source", values_to = "text")
 
 # concatenate any multiple comments per srn, reducing to one entry
 comments <- comments %>% 
   filter(!is.na(text)) %>% 
-  select(-StartDate) %>% 
+  select(-startdate) %>% 
   group_by(SRN,Source) %>% 
   summarise(text=toString(text)) %>% 
+  mutate(text=ifelse(str_starts(text, ","),str_sub(text,3,-1),text)) %>%  # remove any ", " from start
   pivot_wider(names_from = "Source", values_from = "text")
 
 
 # find the latest entry for each type of mark for each srn
 dates<- marks %>% filter(Mark>0) %>% 
   group_by(SRN, Source) %>% 
-  summarise(latest=max(StartDate))
+  summarise(latest=max(startdate))
 
 # find the actual last response
 lastupdate<-max(dates$latest)
 
 # only keep those where StartDate is the same as the latest entry and make one row per srn
 srn <- left_join(marks, dates) %>%
-  filter(StartDate==latest) %>% 
-  select(-latest, -StartDate, -StudentName) %>% 
+  filter(startdate==latest) %>% 
+  select(-latest, -startdate, -StudentName) %>% 
   pivot_wider(names_from = "Source", values_from = "Mark")
 
 
@@ -258,7 +254,7 @@ srn.long<- marked %>% pivot_longer(Super.pc:Agree.pc, names_to = "Source", value
 
 # count up projects done by each Supervisor
 progress <- marked %>% 
-   group_by(Supervisor) %>% 
+   group_by(Super) %>% 
   summarise(First=n(), 
             agreed=sum(Agree.pc>0, na.rm=TRUE), 
             todo=First-agreed,
@@ -270,14 +266,14 @@ complete <- progress %>% filter(todo==0)
 incomplete <- progress %>% filter(todo>0)
 
 agreed <- marked %>% filter(!is.na(Agree.pc)) %>% 
-  select(SRN, Name, Supervisor, Super.pc, Second, Second.pc, Agree.pc)
+  select(SRN, Name, Super, Super.pc, Second, Second.pc, Agree.pc)
 
 notagreed <- marked %>% filter(is.na(Agree.pc)) %>% 
-  select(SRN, Name, Supervisor, Super.pc, Second, Second.pc, Agree.pc)
+  select(SRN, Name, Super, Super.pc, Second, Second.pc, Agree.pc)
 
 
 # save parsed output for return to Supervisors and checking
-marked %>%  select(SRN, Name, Email, Supervisor, Second, Super.pc:Prize) %>% 
+marked %>%  select(SRN, Name, Email, Super, Second, Super.pc:Prize) %>% 
   write_excel_csv(., paste0("DissertationMarks",toString(modulecodes),".csv"))
 
 # save version of grading worksheet for upload if needed
@@ -289,13 +285,6 @@ fordle<-left_join(dlemodule,fordle) %>%
   select(-Agree.pc)
 write_csv(fordle, "DLEGradesheetUploadable.csv")
 
-# for405<-marked %>% select(Email, Agree.pc) %>% rename("Email address"="Email")
-# psyc405<-read_csv(file405)
-# psyc405<-left_join(psyc405,for405) %>% 
-#   mutate(Grade=Agree.pc) %>% 
-#   select(-Agree.pc)
-# write_csv(psyc405, "Psyc405_Uploadable.csv")
-# 
 
 ## statistical section
 
@@ -320,14 +309,14 @@ mark.freqs<-marked %>%
   summarise(n=n())
 
 check.agreed<-srn.long %>% filter(Mark>0) %>% filter(Source=="Agree.pc")
-check.f<-anova(lm(data=check.agreed, Mark ~ Supervisor))
+check.f<-anova(lm(data=check.agreed, Mark ~ Super))
 
 # Prizes
 
 
 prizes<-marked %>% 
-  filter(!is.na(Prize)) %>% 
-  select(SRN,Name,Supervisor,Prize) %>% 
+  filter(!is.na(Prize),!(Prize=="")) %>% 
+  select(SRN,Name,Super,Prize) %>% 
   arrange(Prize)
 
 
@@ -358,8 +347,9 @@ Test of differences between Supervisors' Agreed marks: `r frep(check.f)`
 
 ```{r plot_figs, echo=FALSE, message=FALSE, warning=FALSE}
 
+# blobby plot of agreed marks for ewach supervisor
 srn.long %>% filter(Mark>0) %>% filter(Source=="Agree.pc") %>% 
-  ggplot(aes(y=Supervisor, x=Mark, colour=Supervisor))+
+  ggplot(aes(y=Super, x=Mark, colour=Super))+
   #geom_jitter(width=.10, height=0)+
   geom_count()+
   guides(colour = "none")+
@@ -373,7 +363,7 @@ srn.long %>% filter(Mark>0) %>% filter(Source=="Agree.pc") %>%
     panel.grid.minor.y = element_blank())
 
 
-
+# density plot of grades from each source
 srn.long %>% filter(Mark>0) %>% 
   ggplot(aes(x=Mark, group=Source, colour=Source))+
   scale_color_manual(values=c("red","blue","green"))+
@@ -386,6 +376,7 @@ srn.long %>% filter(Mark>0) %>%
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank())
 
+# column plot of grades from each source
 srn.long %>% filter(Mark>0) %>% 
   ggplot(aes(x=as.factor(Mark), fill=Source))+
   scale_color_manual(values=c("red","blue","green"))+
@@ -399,11 +390,26 @@ srn.long %>% filter(Mark>0) %>%
     panel.grid.minor.x = element_blank())
 
 
-
-
 mark.freqs %>% filter(Agree.pc>0) %>% 
   ggplot(aes(x=Agree.pc,y=n))+
-  geom_col()
+  geom_col()+
+  xlab("Agreed grade")+ylab("Count")+
+  theme_minimal()+
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank())
+
+srn %>% filter(Super.pc>0 & Second.pc>0) %>% 
+  ggplot(aes(x=factor(Super.pc), y=factor(Second.pc)))+
+  geom_jitter(height=.2, width=.2, size=.3)+
+  xlab("Supervisor Grade")+ylab("Moderator Grade")+
+  theme_minimal()
+
+
+  
+
 
 
 ```
@@ -414,7 +420,7 @@ This frequency table shows the differences between initial grades (positive: Sup
 
 
 Supervisors and Second Markers initial marks correlated `r marks.r`, p`r marks.p`.
-
+\small
 `r knitr::kable(agreed, caption="Marks agreed")`
 
 `r knitr::kable(notagreed, caption="Not yet agreed")`
