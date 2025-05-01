@@ -7,7 +7,9 @@
 * **MCQscaleR** - read OCR pdfs and support scaling of MCQ total correct into grades [https://jonmay.shinyapps.io/MCQscaleR/](https://jonmay.shinyapps.io/MCQscaleR/)
 * **ModeratoR** - statistical moderation of several markers on a single question [http://jonmay.shinyapps.io/ModeratoR](http://jonmay.shinyapps.io/ModeratoR)
 * **Stage4OptionChecker** - compares students' option essay grades against other modules [http://jonmay.shinyapps.io/Stage4OptionChecker](http://jonmay.shinyapps.io/Stage4OptionChecker)
+* **Dissertation Marking System** - a markdown script to process data from the limesurvey mark entry system
 
 Shiny apps are provided in their original grey format and as styled versions using bslib.
 All code is commented.
 All Shiny apps hosted at posit in jonmay.shinyapps.io addresses. 
+
