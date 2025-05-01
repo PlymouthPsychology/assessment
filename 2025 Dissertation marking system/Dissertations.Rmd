@@ -1,12 +1,12 @@
 ---
 title: "Dissertation Marking 2025"
 # author: "Jon May"
-# date: "25/04/2025"
+# date: "30/04/2025"
 output:
+  pdf_document: default
+  html_document: default
   word_document:
     reference_docx: word-reference.docx
-  html_document: default
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -54,7 +54,7 @@ library(rio)
 modulecodes<-c(605)
 
 ######## what year is it
-ThisYear<-"2025"
+ThisYear<-year(Sys.Date())
 
 ######## Data file paths
 dlepath<-"marksheets"
@@ -71,7 +71,18 @@ datafile<-rownames(fileinfo)[1]
 survey<-rio::import(datafile) # this assumes data has been exported as CSV with headers set to Question code
 # ignore all entries before April this year
 survey<-survey %>% #mutate(StartDate=dmy_hm(startdate)) %>% 
-   filter(startdate>as.Date(paste0(ThisYear,"/04/01")))
+   filter(startdate>as.Date(paste0(ThisYear,"/04/01"))) %>% 
+   filter(!is.na(SRN))
+
+#### Read in any SRN corrections ----
+srncorrections<-import("SRNcorrections.csv")
+# This is a file with Wrong and Right SRNs
+survey<-survey %>% 
+   mutate(SRN=ifelse(SRN %in% srncorrections$Wrong, 
+                        srncorrections$Right[match(SRN, srncorrections$Wrong)],
+                        SRN))
+
+
 
 
 #### read in gradebooks from dlepath ----
@@ -166,16 +177,11 @@ survey<-survey %>%
 
 
 #### CORRECTIONS
-srn.recodes<-NULL
-# # these correct known mistakes in SRNs entered by staff
-# # order: "incorrect"=correct
-srn.recodes<-c("1072173"="10721733",   # Gambin
-               "720730"="10720730"    # Davies
- 
-              )
-
-survey<-survey %>%
-   mutate(SRN=recode(SRN, !!!srn.recodes))
+# srn.recodes<-NULL
+# # # these correct known mistakes in SRNs entered by staff
+#
+ # survey<-survey %>%
+ #    mutate(SRN=recode(SRN, !!!srn.recodes))
 # 
 # # these spurious entries have been replaced by correct ones so can be deleted
 # # 
@@ -186,18 +192,19 @@ survey<-survey %>% filter(!SRN=="12345678" &
 
 # put all marks in one column
 marks <- survey %>% 
-  select(startdate, SRN, StudentName, Super.pc,Second.pc,Agree.pc) %>%
+  select(startdate, SRN, Super.pc,Second.pc,Agree.pc) %>%
   pivot_longer(Super.pc:Agree.pc, names_to = "Source", values_to = "Mark") %>% 
   filter(Mark>-1)
 
 # put all comments in one column
 comments <- survey %>% 
-  select(startdate, SRN, StudentName, SuperText, SecondText, AgreedText, AgreedNotes, Prize) %>%
-    pivot_longer(SuperText:Prize, names_to = "Source", values_to = "text")
+  select(startdate, SRN, SuperText, SecondText, AgreedText, AgreedNotes) %>%
+    pivot_longer(SuperText:AgreedNotes, names_to = "Source", values_to = "text")
+
 
 # concatenate any multiple comments per srn, reducing to one entry
 comments <- comments %>% 
-  filter(!is.na(text)) %>% 
+  filter(!is.na(text) & !text=="") %>% 
   select(-startdate) %>% 
   group_by(SRN,Source) %>% 
   summarise(text=toString(text)) %>% 
@@ -216,8 +223,17 @@ lastupdate<-max(dates$latest)
 # only keep those where StartDate is the same as the latest entry and make one row per srn
 srn <- left_join(marks, dates) %>%
   filter(startdate==latest) %>% 
-  select(-latest, -startdate, -StudentName) %>% 
+  select(-latest, -startdate) %>% 
   pivot_wider(names_from = "Source", values_from = "Mark")
+
+# prizes
+prizes <- survey %>% 
+   select(SRN, Prize) %>% 
+   full_join(students %>% select(SRN, Name, Super)) %>% 
+   filter(!is.na(Prize) & !Prize=="") %>% 
+   select(SRN, Name, Super, Prize) %>% 
+   arrange(SRN) %>% unique()
+
 
 
 
@@ -234,16 +250,16 @@ marked <- marked %>% full_join(comments)
 
 # identify any spurious SRNs
 spurious <- marked %>% 
-  filter(is.na(Name)) %>% select(SRN, Super.pc:Agree.pc)
+  filter(is.na(Name)) %>% select(SRN,  Super.pc:Agree.pc)
 
 spurious.n<-nrow(spurious)
 
 # remove any that do not match required module list (from PARAMETERS)
 marked<-marked %>% filter(mod %in% modulecodes)
 
-# subset out those who have not submitted
-# nonsubmissions <-marked %>% filter(!Status=="Submit") #%>% select(SRN:Project)
-# marked<-marked %>% filter(Status=="Submit")
+#subset out those who have not submitted
+nonsubmissions <-marked %>% filter(!Status=="Submit") #%>% select(SRN:Project)
+marked<-marked %>% filter(Status=="Submit")
 
 
 # save nonsubms
@@ -273,7 +289,8 @@ notagreed <- marked %>% filter(is.na(Agree.pc)) %>%
 
 
 # save parsed output for return to Supervisors and checking
-marked %>%  select(SRN, Name, Email, Super, Second, Super.pc:Prize) %>% 
+marked %>%  select(SRN, Name, Email, Super, Second, Super.pc:AgreedNotes) %>% 
+   full_join(prizes %>% select(SRN,Prize)) %>% 
   write_excel_csv(., paste0("DissertationMarks",toString(modulecodes),".csv"))
 
 # save version of grading worksheet for upload if needed
@@ -311,37 +328,36 @@ mark.freqs<-marked %>%
 check.agreed<-srn.long %>% filter(Mark>0) %>% filter(Source=="Agree.pc")
 check.f<-anova(lm(data=check.agreed, Mark ~ Super))
 
-# Prizes
-
-
-prizes<-marked %>% 
-  filter(!is.na(Prize),!(Prize=="")) %>% 
-  select(SRN,Name,Super,Prize) %>% 
-  arrange(Prize)
 
 
 ```
 ## Results
 
 By `r lastupdate`, `r  sum(agreed$Agree.pc>=0) ` marks have been agreed for the modules `r toString(modulecodes)`. 
-There are `r nrow(submitted)` submissions summarised below. Total students remaining to be agreed is `r Npc(sum(progress$todo),sum(progress$First))`.
+There are `r nrow(submitted)` submissions summarised below. 
 
-Checking SRNs: `r length(srn.recodes)` incorrect SRNs were corrected. `r spurious.n` unknown and uncorrected SRNS have been found in the entries provided.
+Total students remaining to be agreed is `r Npc(sum(progress$todo),sum(progress$First))`.
+
+### Checking SRNs
+
+`r nrow(srncorrections)` incorrect SRNs were corrected. 
+`r if(nrow(srncorrections)>0) {knitr::kable(srncorrections, caption="Corrected SRNs")}`
+
+`r spurious.n` unknown and uncorrected SRNS have been found in the entries provided.
 
 `r if(spurious.n>0) {knitr::kable(spurious, caption="Unknown SRNs")}`
 
 
 
-`r nrow(complete)` Supervisors have completed mark entry.
+## `r nrow(complete)` Supervisors have completed mark entry.
 `r knitr::kable(complete, caption="Marking Complete")`
 
 Test of differences between Supervisors' Agreed marks: `r frep(check.f)`
 
-`r nrow(prizes)` nominations have been made for the award of a prize.
-`r knitr::kable(prizes, caption="Prize nominations")`
+## Nominations for the award of a prize.
+`r knitr::kable(prizes, caption="Prize nominations", row.names=FALSE)`
 
-## Incomplete marking
-`r nrow(incomplete)` Supervisors have not completed mark entry.
+## `r nrow(incomplete)` Supervisors have not completed mark entry.
 `r knitr::kable(incomplete, caption="---")`
 
 
