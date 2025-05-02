@@ -9,12 +9,12 @@ input<-"DissertationMarks605.csv"
 
 data<-import(input)
 
-supers<-data %>% select(Supervisor) %>% unique.data.frame()%>% rename("StaffSurname"="Supervisor")
+supers<-data %>% select(Super) %>% unique.data.frame()%>% rename("StaffSurname"="Super")
 seconds<-data %>% select(Second) %>% unique.data.frame() %>% rename("StaffSurname"="Second")
 staff<-unique(rbind(supers, seconds))
 
 for (person in staff$StaffSurname){
-  super.data<-data %>% filter(Supervisor==person)
+  super.data<-data %>% filter(Super==person)
   second.data<-data %>% filter(Second==person)
   
   person.data<-rbind(super.data, second.data)
