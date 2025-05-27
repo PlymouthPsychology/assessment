@@ -1,0 +1,106 @@
+---
+title: "MCQ scoring and scaling"
+output: html_document
+
+params:
+  modcode: NA
+  scored: NA
+  dist: NA
+  bins: NA
+  
+  
+
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(numform)
+library(kableExtra)
+library(tidyverse)
+
+# convert raw data to raw totals per student
+#dist<-params$scored %>% group_by(SRN) %>% summarise(score=sum(score))
+
+bins<-params$bins
+scored<-params$scored
+dist<-params$dist
+
+
+gtable<-tibble(Grade=c("F-","F","F+","D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"),
+               Min=unlist(strsplit(bins, split = ","))
+)
+
+   
+            
+   
+
+
+
+
+       
+
+
+
+#### MARKDOWN ----
+
+```
+### Processing marks for `r params$modcode`.
+There were `r nrow(scored)` answers received
+ from `r length(unique(scored$SRN))` students 
+ answering `r length(unique(scored$name))` items.
+ 
+### Raw total correct
+```{r plot_raw, echo=FALSE, message=FALSE, warning=FALSE}
+dist %>% ggplot(aes(x=score))+geom_bar()
+```
+
+The mean N correct was `r f_num(mean(dist$score),2)`.
+
+The Module Leader identified `r gtable$Min[4]` as the minimum total required to Pass (D-) and `r gtable$Min[15]` as the minimum total required for A+.
+
+The other grades were allocated equal bin widths between these two values, with the remainder allocated manually.
+
+`r  kable_styling(kable(t(gtable),  align=c("r","l"), caption="Minimum total correct required for each Grade"),full_width=F)` 
+
+### Grade distribution
+
+Following scaling, the mean grade was `r f_num(mean(dist$grade),2)` (SD=`r f_num(sd(dist$grade),2)`).
+
+The proportion of Upper-second/First class grades was
+`r f_percent(100*nrow(dist |> filter(grade>=62))/nrow(dist),1)`
+
+```{r plot_grades, echo=FALSE, message=FALSE, warning=FALSE}
+# create grade plot labelled with N and percent
+pct_format <- scales::percent_format(accuracy = .1)
+    
+dist %>% ggplot(aes(x=as.factor(grade)))+
+       geom_bar() +
+       #xlim(0,100)+
+      xlab("Grade")+
+       geom_text(
+       aes(angle=90,
+          label = sprintf(
+             '%d (%s)',
+             after_stat(count),
+             pct_format(after_stat(count) / sum(after_stat(count)))
+          )
+       ),
+       stat = 'count',
+       nudge_y = 1,
+       colour = 'darkblue',
+       size = 4
+    )+
+      theme_minimal()
+
+
+```
+
+
+
+
+Produced : `r format(Sys.time(), "%a %b %d %X %Y")`
+
