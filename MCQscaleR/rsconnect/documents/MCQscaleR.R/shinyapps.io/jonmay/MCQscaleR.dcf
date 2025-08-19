@@ -1,0 +1,12 @@
+name: MCQscaleR
+title: MCQscaleR
+username: jonmay
+account: jonmay
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 13844920
+bundleId: 10790576
+url: https://jonmay.shinyapps.io/MCQscaleR/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

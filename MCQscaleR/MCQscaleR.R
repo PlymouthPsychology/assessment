@@ -3,6 +3,7 @@
 # updated May 2025 Jon May
 
 # MCQ score checker   Jon May January 2025
+# August 2025 datetime function added to add timestamps to filenames
 # ====================
 #
 # Faculty OCR software generates PDFs so this
@@ -282,7 +283,8 @@ grade<-function(bins,dist){
   ))
 }
     
-
+# create timestamp to append to filenames
+datetime<-function(){format(Sys.time(),"%Y%m%d-%H%M%S")}
 
 #### SHINY ----
 
@@ -525,7 +527,7 @@ server <- function(input, output, session) {
  
   # Downloadable csv of scored dataset ----
   output$downloadData <- downloadHandler( 
-     filename="checkable.csv",
+     filename=paste0("checkable",datetime(),".csv"),
     
      content = function(file) {
         if(is.null(input$dlefile)|is.null(input$studentfile)|is.null(input$anskey))
@@ -547,8 +549,8 @@ server <- function(input, output, session) {
  
  # Downloadable csv of scored dataset for DLe----
  output$dleData <- downloadHandler( 
-    filename="dle_upload.csv",
-    
+    filename=paste0("dle_upload",datetime(),".csv"),
+   
     content = function(file) {
        if(is.null(input$dlefile)|is.null(input$studentfile)|is.null(input$anskey))
           return()
@@ -573,7 +575,8 @@ server <- function(input, output, session) {
  
  
  output$report <- downloadHandler(     
-    filename = "MCQ Scaling Report.html",
+    filename=paste0("MCQ Scaling Report ",datetime(),".html"),
+    
     content = function(file) {
        tempReport <- file.path(tempdir(), "ScalingReport2.Rmd")
        file.copy("ScalingReport2.Rmd", tempReport, overwrite = TRUE)
