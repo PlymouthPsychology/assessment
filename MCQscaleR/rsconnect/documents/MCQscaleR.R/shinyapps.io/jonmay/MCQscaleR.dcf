@@ -5,7 +5,7 @@ account: jonmay
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 13844920
-bundleId: 10790576
+bundleId: 10791196
 url: https://jonmay.shinyapps.io/MCQscaleR/
 version: 1
 asMultiple: FALSE

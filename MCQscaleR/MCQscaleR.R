@@ -56,8 +56,17 @@ parsepage<-function(p){
    t11<-str_sub(t10,1,last[1,1])
    
    # insert blanks to pad out t11 to 105 characters
+   nmissing<-105-str_length(t11)
+   t11start<-str_sub(t11,1,-(nmissing*2+1))
+   t11end<-str_sub(t11,-nmissing*2)
+   t12<-""
+   for(pair in 1:nmissing){
+      t12<-paste0(t12, str_sub(t11end,1+(pair-1)*2,2+(pair-1)*2),"X")
+   }
+   t13<-paste0(t11start,t12)
    
-   return(tibble(SRN=srn,DATA=t11))
+   
+   return(tibble(SRN=srn,DATA=t13))
    
 } #end parsepage
 
@@ -90,6 +99,7 @@ readanswers<-function(text){
    
    # remember that the answers are in order 1, 36, 71, 2, 37, 72...
    # unless N<71 (no 3rd column)or n<36 (only first column)
+   # and third column might not be as long as the others 
    
    ni<-nchar(data$DATA[1])
    
@@ -254,7 +264,7 @@ score<-function(data, scoringkey){
    
    scored<-left_join(data, scoringkey, join_by(name == Q)) %>%   # merge answers with key
       mutate(score=if_else(value==correct,1,0))                   # if answer chosen matches correct
-   return(scored)
+   return(scored %>% filter(!is.na(score)))
 }   
 
 
@@ -388,9 +398,15 @@ server <- function(input, output, session) {
          
          data<-import(file$datapath)
          
-         colnames(data)<-c("eng","all","SRN","s4Name","Email")
+         data<-data%>%select(SRN=`Student Reference Number (SRN)`,
+                             s4name=`Student: Account Name`,
+                             Email=`Student: Email`) %>%
+            mutate(SRN=as.character(SRN))
+                   
+         #colnames(data)<-c("eng","all","SRN","s4Name","Email")
          
-         data<-data %>% select(SRN,s4Name,Email) %>% mutate(SRN=as.character(SRN))
+         #data<-data %>% select(SRN,s4Name,Email) %>% mutate(SRN=as.character(SRN))
+         #s4file<-data
       }
    })
    
