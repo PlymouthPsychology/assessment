@@ -40,202 +40,64 @@ parsepage<-function(p){
    
    z<-str_length(p)
    x<-str_locate(p,"Response Correct\n\n")
-   t<-str_sub(p,x[2], z)  # everything between that string and the end of the page
+   t2<-str_sub(p,x[2], z)  # everything between that string and the end of the page
    
-   # strip out spaces, returns, Yes and No, leaving just the letters chosen and item numbers
-   t2<-str_remove_all(t," ")
+   # strip out returns, Yes and No, leaving just the letters chosen and item numbers
    t3<-str_remove_all(t2,"Yes")
    t4<-str_remove_all(t3,"No")
    t5<-str_remove_all(t4,"\n")
-   
-   # remove all the item numbers
-   t10<-str_remove_all(t5,"[1234567890]")
+   # add Q before item numbers 
+   t6<-str_replace_all(t5,"\\s([123456789])"," Q\\1")
+   # remove spaces
+   t7<-str_remove_all(t6," ")
+   # add dashed before answers
    
    # retain just the letters before the R of Report
-   last<-str_locate(t10,"R")-1
-   t11<-str_sub(t10,1,last[1,1])
-   
-   # insert blanks to pad out t11 to 105 characters
-   nmissing<-105-str_length(t11)
-   t11start<-str_sub(t11,1,-(nmissing*2+1))
-   t11end<-str_sub(t11,-nmissing*2)
-   t12<-""
-   for(pair in 1:nmissing){
-      t12<-paste0(t12, str_sub(t11end,1+(pair-1)*2,2+(pair-1)*2),"X")
-   }
-   t13<-paste0(t11start,t12)
+   last<-str_locate(t7,"R")-1
+   t8<-str_sub(t7,1,last[1,1])
    
    
-   return(tibble(SRN=srn,DATA=t13))
+   # make into a tibble with dashes before answers
+   # NB < and > apparently used to indicate answer left blank?
+   t9<-tibble(data=str_replace_all(t8,"([ABCD<>])","-\\1")  )
+   
+   # put into columns and remove empty lines
+   t10<-separate_longer_delim(t9,data,delim="Q") |> filter(!data=="")   
+   t11<-separate_wider_delim(t10,data,delim="-", names=c("Q","value")) |> 
+      mutate(Q=paste0("Q",Q))
+   
+   
+  
+   # add srn to each row
+   t12<-t11|>mutate(SRN=srn)
+   
+   
+   
+   return(t12)
    
 } #end parsepage
 
 # given the text of a PDF file, read each students' data into a row of a tibble SRN, DATA
 readanswers<-function(text){
    
-   #### read PDFs of answers and scoring key
-   
-   # find the files in the working directory
-   # breakdown<-list.files(pattern="results breakdown.pdf")
-   # correctanswers<-list.files(pattern="results correct answers.pdf")
-   # 
-   
-   #### read the file with a page for each student ----
-   # breakdown<-file.path("PSYC425 breakdown.pdf")
-   # text<-pdf_text(breakdown)
-   # 
-   # how many sheets are there
    students<-length(text)
    
    
    # initialise data
-   data<-tibble(SRN=NULL,DATA=NULL) 
+   data<-tibble(Q=NULL,answer=NULL, SRN=NULL) 
    
    #### loop  reading each page and adding it to data ----
    for (page  in 1:students){
       data<-rbind(data,parsepage(text[page]))
+      
    }
-   
-   
-   # remember that the answers are in order 1, 36, 71, 2, 37, 72...
-   # unless N<71 (no 3rd column)or n<36 (only first column)
-   # and third column might not be as long as the others 
-   
-   ni<-nchar(data$DATA[1])
-   
-   # 
-   if(ni<36) itemnames<-paste0("Q",
-                               c(1,
-                                 2,
-                                 3,
-                                 4,
-                                 5,
-                                 6,
-                                 7,
-                                 8,
-                                 9,
-                                 10,
-                                 11,
-                                 12,
-                                 13,
-                                 14,
-                                 15,
-                                 16,
-                                 17,
-                                 18,
-                                 19,
-                                 20,
-                                 21,
-                                 22,
-                                 23,
-                                 24,
-                                 25,
-                                 26,
-                                 27,
-                                 28,
-                                 29,
-                                 30,
-                                 31,
-                                 32,
-                                 33,
-                                 34,
-                                 35))
-   if(ni>35) itemnames<-paste0("Q",
-                         c(1,36,
-                           2,37,
-                           3,38,
-                           4,39,
-                           5,40,
-                           6,41,
-                           7,42,
-                           8,43,
-                           9,44,
-                           10,45,
-                           11,46,
-                           12,47,
-                           13,48,
-                           14,49,
-                           15,50,
-                           16,51,
-                           17,52,
-                           18,53,
-                           19,54,
-                           20,55,
-                           21,56,
-                           22,57,
-                           23,58,
-                           24,59,
-                           25,60,
-                           26,61,
-                           27,62,
-                           28,63,
-                           29,64,
-                           30,65,
-                           31,66,
-                           32,67,
-                           33,68,
-                           34,69,
-                           35,70))
-   if(ni>70) itemnames<-paste0("Q",
-                               c(1,36,71,
-                                 2,37,72,
-                                 3,38,73,
-                                 4,39,74,
-                                 5,40,75,
-                                 6,41,76,
-                                 7,42,77,
-                                 8,43,78,
-                                 9,44,79,
-                                 10,45,80,
-                                 11,46,81,
-                                 12,47,82,
-                                 13,48,83,
-                                 14,49,84,
-                                 15,50,85,
-                                 16,51,86,
-                                 17,52,87,
-                                 18,53,88,
-                                 19,54,89,
-                                 20,55,90,
-                                 21,56,91,
-                                 22,57,92,
-                                 23,58,93,
-                                 24,59,94,
-                                 25,60,95,
-                                 26,61,96,
-                                 27,62,97,
-                                 28,63,98,
-                                 29,64,99,
-                                 30,65,100,
-                                 31,66,101,
-                                 32,67,102,
-                                 33,68,103,
-                                 34,69,104,
-                                 35,70,105))
-   
-   itemnames<-itemnames[1:ni]
-   
-   # each answer has width 1
-   items<-c(rep(1,ni))
-   #create a named list of items each width width 1
-   nameditems<-set_names(items,itemnames)
-   
-   #make nameditems same length as DATA (n of items in MCQ)
-    
-    nameditems<-nameditems[1:ni]
-   # 
-   # used the named listr to separate the DATA string into up to 105 correctly named columns
-   data<-separate_wider_position(data,DATA,nameditems) %>% pivot_longer(-SRN)
    
    return(data)
 }  # end readanswers
 
 # given the students' answers and the text of the correct answer key
 # extract key, score answers and do stats
-readkey<-function(text){   # data is students' answers, text is page from PDF file correct answers
-   #### read the file with the correct answers ----
-   #pdf_file<-file.path("PSYC425 correct answers.pdf")
-   #text<-pdf_text(correctanswers)
+readkey<-function(text){   
    
    
    t<-tibble(text)   # convert text to a tibble
@@ -262,7 +124,7 @@ readkey<-function(text){   # data is students' answers, text is page from PDF fi
 score<-function(data, scoringkey){ 
    # now we have an answer key to join onto a long version of the student answers
    
-   scored<-left_join(data, scoringkey, join_by(name == Q)) %>%   # merge answers with key
+   scored<-left_join(data, scoringkey) %>%   # merge answers with key
       mutate(score=if_else(value==correct,1,0))                   # if answer chosen matches correct
    return(scored %>% filter(!is.na(score)))
 }   
@@ -308,7 +170,7 @@ ui <- fluidPage(
          tabsetPanel(type = "tabs",
                      tabPanel("Original", 
                               htmlOutput("Intro"),
-                              fileInput("studentfile", "Choose 'results breakdown' PDF File", accept = ".pdf"),
+                              fileInput("studentfile", "Choose the results 'breakdown' PDF File", accept = ".pdf"),
                               fileInput("anskey", "Choose 'correct answers' PDF File", accept = ".pdf"),
                               fileInput("dlefile", "Upload DLE gradebook file to return marks", accept = ".csv"),
                               fileInput("s4file", "Upload S4 enrolment report to match SRNs to students", accept = ".csv"),
